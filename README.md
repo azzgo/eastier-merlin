@@ -1,23 +1,155 @@
-# EasyTier Merlin KoolShare 插件
+# EasyTier KoolShare 插件
 
-自用版本，专为RT-BT86U路由器优化。
+专为 ASUS RT-BT86U 路由器打造的 EasyTier VPN 组网插件。
 
-## 功能特点
-- 简化配置界面
-- 固定ARM64架构支持
-- 集成--no-tun参数
-- 个人使用，无需发布
+## 🚀 项目特点
 
-## 开发计划
-详见 DEVELOPMENT_PLAN.md
+- **专用优化**: 针对 RT-BT86U (ARM64) 架构优化
+- **即装即用**: 标准 KoolShare 软件中心安装包
+- **Web管理**: 完整的路由器 Web 界面支持
+- **自动服务**: 开机自启动，配置持久化
+- **稳定可靠**: 经过全面测试，生产环境可用
 
-## 使用说明
-1. 安装插件到路由器
-2. 在Web界面配置参数
-3. 启动服务
+## 📦 快速安装
 
-## 配置参数
-- IPv4地址
-- 网络名称
-- 网络密钥  
-- 节点地址
+### 1. 下载安装包
+```bash
+# 获取最新版本
+wget https://path-to-your-package/easytier.tar.gz
+```
+
+### 2. 软件中心安装
+1. 登录路由器管理界面
+2. 进入 **软件中心** → **离线安装**
+3. 上传 `easytier.tar.gz` 文件
+4. 等待安装完成
+
+### 3. 配置使用
+1. 软件中心找到 **EasyTier** 插件
+2. 点击进入配置界面
+3. 填写必要参数并启动服务
+
+## ⚙️ 配置说明
+
+### 必填参数
+| 参数 | 描述 | 示例 |
+|------|------|------|
+| **IPv4地址** | 虚拟网络中的IP地址 | `10.0.0.1` |
+| **网络名称** | 网络标识符 | `home-vpn` |
+| **网络密钥** | 网络加密密码 | `my-secret-2024` |
+| **节点地址** | 远程节点连接地址 | `tcp://1.2.3.4:11010` |
+
+### 配置示例
+```
+IPv4地址: 10.0.0.1
+网络名称: home-network
+网络密钥: your-strong-password
+节点地址: tcp://123.123.123.123:11010,udp://example.com:11011
+```
+
+## 🖥️ 使用方法
+
+### Web 界面管理
+- 访问: `路由器IP/Module_easytier.asp`
+- 功能: 保存配置、启动/停止服务、查看状态
+- 特性: 实时状态更新、配置验证、错误提示
+
+### 命令行管理
+```bash
+# 服务控制
+/koolshare/scripts/easytier_config.sh start    # 启动
+/koolshare/scripts/easytier_config.sh stop     # 停止  
+/koolshare/scripts/easytier_config.sh restart  # 重启
+/koolshare/scripts/easytier_config.sh status   # 状态
+
+# 配置管理
+/koolshare/scripts/easytier_config.sh save_config  # 保存
+/koolshare/scripts/easytier_config.sh get_config   # 获取
+```
+
+## 📁 技术架构
+
+### 核心组件
+```
+/koolshare/
+├── bin/easytier-core              # ARM64 主程序
+├── scripts/
+│   ├── easytier_config.sh        # 主控制脚本
+│   └── easytier_status.cgi       # 状态检查API
+├── webs/Module_easytier.asp      # Web管理界面
+├── configs/easytier.conf         # 配置文件
+└── init.d/S99easytier.sh         # 开机启动
+```
+
+### API 接口
+- **配置API**: `/_api/` + `easytier_config.sh`
+- **状态API**: `/cgi-bin/easytier_status.cgi`
+- **Web界面**: `/Module_easytier.asp`
+
+## 🔧 开发构建
+
+### 构建环境
+```bash
+# 打包插件
+./build_package.sh
+```
+
+### 文件结构
+- `easytier/` - 插件源码目录
+- `build_package.sh` - 构建脚本
+- `config.json.js` - 插件元数据
+
+## 🛠️ 故障排除
+
+### 常见问题
+| 问题 | 原因 | 解决方案 |
+|------|------|----------|
+| 安装失败 | 架构不匹配 | 确认为 ARM64 路由器 |
+| 启动失败 | 配置错误 | 检查参数格式和网络连通性 |
+| Web无法访问 | 插件未正确安装 | 重新安装并检查文件权限 |
+
+### 日志查看
+
+首先需要登录到路由器
+```bash
+# 插件日志
+tail -f /tmp/upload/easytier_log.txt
+
+# 系统日志
+logread | grep easytier
+
+# 服务状态
+/koolshare/scripts/easytier_config.sh status
+```
+
+### 卸载插件
+```bash
+# 通过软件中心卸载，或手动清理
+/koolshare/scripts/uninstall_easytier.sh
+```
+
+## 🎯 版本信息
+
+- **当前版本**: v1.7
+- **支持平台**: ARM64 (aarch64)
+- **兼容固件**: ASUS Merlin + KoolShare
+- **目标设备**: RT-BT86U
+
+## 📋 系统要求
+
+- **路由器**: ASUS RT-BT86U 或兼容的 ARM64 设备
+- **固件**: ASUS Merlin 官方固件
+- **软件中心**: KoolShare 软件中心已安装
+- **存储空间**: 至少 5MB 可用空间
+- **网络**: 互联网连接用于与其他节点通信
+
+## 🔒 安全说明
+
+- 使用强密码作为网络密钥
+- 定期更新网络密钥
+- 确保防火墙正确配置
+- 监控日志文件以发现异常
+
+---
+
+**注意**: 这是个人使用项目，仅针对特定设备优化。如需技术支持，请参考 `AGENT.md` 获取详细技术信息。

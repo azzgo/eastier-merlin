@@ -1,0 +1,21 @@
+{
+    "name": "EasyTier",
+    "description": "EasyTier VPN for RT-BT86U",
+    "version": "1.0.0",
+    "model": "RT-BT86U",
+    "arch": "arm64",
+    "author": "Personal",
+    "home_url": "Module_easytier.asp",
+    "port": "8080",
+    "server": "None",
+    "module": "easytier",
+    "category": "VPN",
+    "type": "application",
+    "exclusive": true,
+    "forced_install": false,
+    "depends": "",
+    "rc_support": "startstop",
+    "app_id": "easytier",
+    "app_name": "EasyTier",
+    "enable": "true"
+}

@@ -1,0 +1,15 @@
+# 构建产物
+*.tar.gz
+*.tar.gz.md5
+
+# 临时文件
+*.tmp
+*.log
+
+# IDE文件
+.vscode/
+.idea/
+
+# 系统文件
+.DS_Store
+Thumbs.db
