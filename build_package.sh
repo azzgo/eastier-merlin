@@ -41,7 +41,7 @@ REQUIRED_DIRS=(
     "easytier/bin"
     "easytier/scripts"
     "easytier/webs"
-    "easytier/configs"
+    # "easytier/configs" # 当前是空文件
     "easytier/res"
 )
 

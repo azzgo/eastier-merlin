@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'  # 触发条件：推送版本标签（如 v1.0.0, v2.1.3 等）
 
+permissions:
+  contents: write  # Required for creating releases and uploading assets
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -85,7 +88,8 @@ jobs:
           echo "MD5校验: ${MD5_VALUE}"
           
       - name: Create draft release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
+        if: github.ref_type == 'tag'
         with:
           tag_name: ${{ env.RELEASE_VERSION }}
           name: EasyTier KoolShare Plugin ${{ env.RELEASE_VERSION }}
@@ -129,9 +133,7 @@ jobs:
           files: |
             easytier.tar.gz
             easytier.tar.gz.md5
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Release summary
         run: |
           echo "🎉 Draft release 创建成功!"

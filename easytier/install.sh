@@ -159,7 +159,7 @@ add_to_software_center(){
     echo_date "添加到软件中心..."
     
     # 版本号
-    VERSION="1.2.0"
+    VERSION="1.2.1"
     
     # 设置软件中心需要的dbus变量 - 这是关键！
     dbus set softcenter_module_easytier_version="$VERSION"
