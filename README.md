@@ -1,6 +1,6 @@
 # EasyTier KoolShare 插件
 
-专为 ASUS RT-BT86U 路由器打造的 EasyTier VPN 组网插件。
+专为 ASUS RT-BT86U 路由器打造的 [EasyTier](https://easytier.cn/) 组网插件。
 
 ## 🚀 项目特点
 
@@ -13,10 +13,8 @@
 ## 📦 快速安装
 
 ### 1. 下载安装包
-```bash
-# 获取最新版本
-wget https://path-to-your-package/easytier.tar.gz
-```
+
+请前往 [Latest Release](https://github.com/azzgo/eastier-merlin/releases/latest) 下载最新版安装包。
 
 ### 2. 软件中心安装
 1. 登录路由器管理界面
