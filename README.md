@@ -130,7 +130,6 @@ logread | grep easytier
 
 ## 🎯 版本信息
 
-- **当前版本**: v1.7
 - **支持平台**: ARM64 (aarch64)
 - **兼容固件**: ASUS Merlin + KoolShare
 - **目标设备**: RT-BT86U
