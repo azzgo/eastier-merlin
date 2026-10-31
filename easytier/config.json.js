@@ -1,7 +1,7 @@
 {
     "name": "EasyTier",
     "description": "EasyTier VPN for RT-BT86U",
-    "version": "1.0.0",
+    "version": "1.3.1",
     "model": "RT-BT86U",
     "arch": "arm64",
     "author": "Personal",

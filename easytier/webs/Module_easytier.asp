@@ -639,13 +639,13 @@ function clear_config(){
 												<tr>
 													<th style="width: 20%;">配置文件内容</th>
 													<td>
-														<textarea id="easytier_config_content" style="width: 98%; height: 300px; font-family: 'Courier New', monospace; font-size: 12px;" class="input_3_table" autocorrect="off" autocapitalize="off" placeholder="请粘贴 easytier 配置文件内容&#10;&#10;您可以在 https://easytier.cn/web/index.html#/config_generator 生成配置文件&#10;&#10;示例配置:&#10;hostname = &quot;my-node&quot;&#10;instance_name = &quot;default&quot;&#10;&#10;[network_identity]&#10;network_name = &quot;my-network&quot;&#10;network_secret = &quot;my-secret&quot;&#10;&#10;[peer_list]&#10;tcp = [&quot;tcp://192.168.1.1:11010&quot;]" onchange="update_autostart_availability();"></textarea>
+														<textarea id="easytier_config_content" style="width: 98%; height: 300px; font-family: 'Courier New', monospace; font-size: 12px;" class="input_3_table" autocorrect="off" autocapitalize="off" placeholder="请粘贴 easytier 配置文件内容&#10;&#10;您可以在 https://easytier.cn/assistant/ 生成配置文件&#10;&#10;示例配置:&#10;hostname = &quot;my-node&quot;&#10;instance_name = &quot;default&quot;&#10;&#10;[network_identity]&#10;network_name = &quot;my-network&quot;&#10;network_secret = &quot;my-secret&quot;&#10;&#10;[peer_list]&#10;tcp = [&quot;tcp://192.168.1.1:11010&quot;]" onchange="update_autostart_availability();"></textarea>
 														<div style="margin-top:5px;">
 															<input class="button_gen" onClick="clear_config()" type="button" value="清空" style="font-size:12px; padding:2px 8px; margin-right:10px;" />
 														</div>
 														<div style="margin-top:5px; color:#FC0;">
 															<span>请粘贴完整的 easytier 配置文件内容</span><br/>
-															<span>可通过 <a href="https://easytier.cn/web/index.html#/config_generator" target="_blank" style="color:#00ffe4;">官方配置生成工具</a> 生成配置文件</span>
+															<span>可通过 <a href="https://easytier.cn/assistant/" target="_blank" style="color:#00ffe4;">官方配置生成工具</a> 生成配置文件</span>
 														</div>
 													</td>
 												</tr>
@@ -697,7 +697,7 @@ function clear_config(){
 										<div style="margin: 10px 0 10px 5px;" class="splitLine"></div>
 										<div style="margin:10px 0 0 5px">
 											<li>EasyTier是一个简单易用的VPN组网方案，支持跨平台部署。</li>
-											<li>请通过 <a href="https://easytier.cn/web/index.html#/config_generator" target="_blank" style="color:#00ffe4;">官方配置生成工具</a> 生成配置文件。</li>
+											<li>请通过 <a href="https://easytier.cn/assistant/" target="_blank" style="color:#00ffe4;">官方配置生成工具</a> 生成配置文件。</li>
 											<li>配置文件支持 YAML 或 TOML 格式，请确保格式正确。</li>
 											<li>配置生成后，复制完整内容粘贴到上方文本框中即可。</li>
 										</div>

@@ -1,0 +1,33 @@
+name: Test
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'easytier/scripts/**'
+      - 'tests/**'
+      - '.github/workflows/test.yml'
+  pull_request:
+    paths:
+      - 'easytier/scripts/**'
+      - 'tests/**'
+      - '.github/workflows/test.yml'
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          shellcheck -S warning easytier/scripts/easytier_config.sh
+
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run regression tests (busybox ash via docker)
+        run: |
+          docker run --rm --init --network none -v "$PWD":/repo -w /repo \
+            busybox:latest sh tests/cases.sh

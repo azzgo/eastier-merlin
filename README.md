@@ -90,7 +90,16 @@ IPv4地址: 10.0.0.1
 ```bash
 # 打包插件
 ./build_package.sh
+
+# 运行回归测试（本地需要 docker；busybox ash 模拟路由器 shell）
+bash tests/cases.sh
 ```
+
+### 测试说明
+- `tests/cases.sh` — 回归用例，调用契约来自 2026-10-31 真机取证（`tests/fixtures/contract/`）
+- `tests/harness.sh` — 隔离沙箱 + mock（dbus / base.sh / easytier-core 假二进制）
+- 覆盖：status 轮询不被误判为 web 提交、dbus export 环境污染、start/stop 失败必须真实上报、日志不被轮询清空
+- GitHub Actions 在每次脚本改动时自动跑 shellcheck + 回归测试
 
 ### 文件结构
 - `easytier/` - 插件源码目录
@@ -105,6 +114,12 @@ IPv4地址: 10.0.0.1
 | 安装失败 | 架构不匹配 | 确认为 ARM64 路由器 |
 | 启动失败 | 配置错误 | 检查参数格式和网络连通性 |
 | Web无法访问 | 插件未正确安装 | 重新安装并检查文件权限 |
+| `easytier-cli peer` 中 ipv4 列为空 | 全网没有任何节点拥有虚拟 IP 时，`dhcp = true` 会永远等待（它只在 routes 中存在带 IP 的路由后才分配）。已在 v2.4.5/2.7.0 本地复现验证 | **在配置文件中显式写 `ipv4 = "x.x.x.x/24"`**（no_tun 模式下静态 IP 在 v2.4.5+ 均正常生效），并确保同网其他节点也配置了 IP 且不冲突 |
+
+### 关于 no_tun 模式下的虚拟 IP（重要）
+- `dhcp = true` 单独使用在「网络中尚无任何节点持有虚拟 IP」时会互相等待，导致所有节点 ipv4 均为空。
+- 推荐做法：给每个节点写静态 `ipv4`（同一网段、互不冲突），例如主路由 `10.126.126.1`、其他节点依次递增。
+- 本仓库 easytier-core 版本：**2.7.0**（`easytier/bin/easytier-core`，UPX 压缩的 aarch64 静态二进制，本地可用 `qemu-aarch64-static` 直接运行验证）。
 
 ### 日志查看
 

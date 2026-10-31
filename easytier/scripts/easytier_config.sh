@@ -26,7 +26,8 @@ else
 fi
 
 # 批量导出所有easytier相关的dbus变量
-eval $(dbus export easytier_) 2>/dev/null || true
+# 取出 dbus 中的配置，隔离到 DBUS_ 前缀，避免污染脚本逻辑使用的变量
+eval "$(dbus export easytier_ 2>/dev/null | sed 's/^export easytier_/DBUS_easytier_/')" || true
 
 echo_date "==================== EasyTier Config Script Start ====================" >> $LOG_FILE
 echo_date "EasyConfig script start" >> $LOG_FILE
@@ -176,7 +177,7 @@ start_easytier()
 {
     echo_date "正在启动EasyTier..."
     
-    if [ -f "$PID_FILE" ] && kill -0 $(cat $PID_FILE) 2>/dev/null; then
+    if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
         echo_date "EasyTier 已在运行"
         return 0
     fi
@@ -197,13 +198,23 @@ start_easytier()
     echo_date "使用配置文件启动: $CONFIG_FILE"
     
     # 使用配置文件启动进程
-    cd /tmp
+    # 路由器内核的 tun 模块可能未随开机加载，缺它时 core 会报
+    # "tun device error: No such device (os error 19)" 并退出
+    if ! grep -qs tun /proc/modules && [ ! -e /dev/net/tun ]; then
+        modprobe tun 2>/dev/null || true
+    fi
+    if [ ! -e /dev/net/tun ]; then
+        [ -d /dev/net ] || mkdir -p /dev/net
+        mknod /dev/net/tun c 10 200 2>/dev/null || true
+        chmod 600 /dev/net/tun 2>/dev/null || true
+    fi
+    cd /tmp || return 1
     nohup $EASYTIER_BIN -c "$CONFIG_FILE" > /dev/null 2>&1 &
-    echo $! > $PID_FILE
+    echo $! > "$PID_FILE"
     
     sleep 3
     
-    if [ -f $PID_FILE ] && kill -0 $(cat $PID_FILE) 2>/dev/null; then
+    if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
         echo_date "✅ EasyTier 启动成功"
         return 0
     else
@@ -218,14 +229,14 @@ stop_easytier()
 {
     echo_date "正在停止EasyTier..."
     
-    if [ -f $PID_FILE ]; then
-        PID=$(cat $PID_FILE)
-        if kill -0 $PID 2>/dev/null; then
-            kill $PID
+    if [ -f "$PID_FILE" ]; then
+        PID=$(cat "$PID_FILE" 2>/dev/null)
+        if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+            kill "$PID" 2>/dev/null
             # 等待进程结束
             i=1
             while [ $i -le 10 ]; do
-                if ! kill -0 $PID 2>/dev/null; then
+                if ! kill -0 "$PID" 2>/dev/null; then
                     break
                 fi
                 sleep 1
@@ -233,14 +244,14 @@ stop_easytier()
             done
             
             # 如果还在运行，强制杀死
-            if kill -0 $PID 2>/dev/null; then
+            if kill -0 "$PID" 2>/dev/null; then
                 echo_date "进程未正常结束，强制终止..."
-                kill -9 $PID
+                kill -9 "$PID"
                 sleep 1
             fi
             
             # 确认进程已停止
-            if ! kill -0 $PID 2>/dev/null; then
+            if ! kill -0 "$PID" 2>/dev/null; then
                 echo_date "✅ EasyTier 已停止"
                 rm -f $PID_FILE
                 return 0
@@ -271,7 +282,7 @@ save_config_to_dbus()
         if [ -n "$config_content_encoded" ]; then
             dbus set easytier_config_content_encoded="$config_content_encoded" 2>/dev/null || true
         fi
-        dbus set easytier_version="1.2.0" 2>/dev/null || true
+        dbus set easytier_version="1.3.1" 2>/dev/null || true
         
         echo_date "✅ 配置已保存到dbus"
         return 0
@@ -325,7 +336,16 @@ save_config()
             config_content="$easytier_config_content"
         fi
     fi
-    
+
+    # fields 里没有配置内容时（stop/restart 等提交只带部分字段），
+    # 保留现有配置文件，不视为错误
+    if [ -z "$config_content" ]; then
+        if [ -s "$CONFIG_FILE" ]; then
+            echo_date "请求未携带配置内容，保留现有配置文件"
+            return 0
+        fi
+    fi
+
     echo_date "配置参数："
     echo_date "  自启动状态: $autostart"
     echo_date "  配置文件内容长度: ${#config_content} 字符"
@@ -368,12 +388,12 @@ get_config()
     # 首先尝试从dbus读取
     autostart_val=""
     config_content_val=""
-    version_val="1.2.0"
+    version_val="1.3.1"
     
     if command -v dbus >/dev/null 2>&1; then
         autostart_val=$(dbus get easytier_autostart 2>/dev/null || echo "")
         config_content_val=$(dbus get easytier_config_content 2>/dev/null || echo "")
-        version_val=$(dbus get easytier_version 2>/dev/null || echo "1.2.0")
+        version_val=$(dbus get easytier_version 2>/dev/null || echo "1.3.1")
     fi
     
     # 如果dbus中没有配置，尝试从文件读取
@@ -392,198 +412,74 @@ get_config()
     echo "easytier_version=${version_val}"
 }
 
-# 软件中心API参数检测与处理
-# 软件中心调用机制分析：
-# 从你的调试显示：args "38727934 status"
-# 说明：$1=随机ID, $2=某种状态，真正的参数需要从别的地方获取
+# 软件中心调用契约（2026-10-31 从真机取证，见 tests/fixtures/contract/）：
+#   $1 = 请求随机ID（框架生成，忽略）
+#   $2 = 操作名：status | save_config | save_autostart | start | stop | restart
+#   $3 = "web_submit"（仅提交类操作携带；status 只有两个参数）
+#   fields 中的键会被框架导出为同名环境变量（如 easytier_autostart）
+OPERATION="$2"
+WEB_SUBMIT="$3"
+PARAM_SOURCE="argv"
 
-OPERATION=""
-WEB_SUBMIT=""
-PARAM_SOURCE="unknown"
-
-# 检测调用模式
-IS_API_CALL=0
-if [ -n "$1" ] && [ "$1" -eq "$1" ] 2>/dev/null; then
-    IS_API_CALL=1
-fi
-
-echo_date "=== Parameter Detection Start ===" >> $LOG_FILE
-echo_date "Raw args: \$1=$1, \$2=$2, IS_API_CALL=$IS_API_CALL" >> $LOG_FILE
-
-if [ "$IS_API_CALL" = "1" ]; then
-    # 软件中心API调用模式
-    echo_date "检测为API调用模式，分析请求类型..." >> $LOG_FILE
-    
-    # 方法1: 检查预定义的环境变量
-    echo_date "Method 1: Checking predefined environment variables..." >> $LOG_FILE
-    for prefix in "params_" "param_" "method_param_" "arg_" ""; do
-        if [ -z "$prefix" ]; then
-            # 检查直接的数字变量名和特殊变量
-            for varname in "1" "2" "3" "params" "method" "action" "operation"; do
-                eval "val=\$$varname"
-                if [ -n "$val" ] && [ "$varname" != "1" ] || ([ "$varname" = "1" ] && [ "$val" != "$1" ]); then
-                    OPERATION="$val"
-                    PARAM_SOURCE="direct_${varname}"
-                    echo_date "Found operation from \$${varname}: $OPERATION" >> $LOG_FILE
-                    break 2
-                fi
-            done
-        else
-            var1="${prefix}0"
-            var2="${prefix}1"
-            eval "val1=\$$var1"
-            eval "val2=\$$var2"
-            echo_date "Checking ${var1}=$val1, ${var2}=$val2" >> $LOG_FILE
-            if [ -n "$val1" ]; then
-                OPERATION="$val1"
-                WEB_SUBMIT="$val2"
-                PARAM_SOURCE="env_${prefix}"
-                echo_date "Found operation from ${var1}: $OPERATION" >> $LOG_FILE
-                break
-            fi
-        fi
-    done
-    
-    # 特殊检查：软件中心可能直接设置method环境变量
-    if [ -z "$OPERATION" ] && [ -n "$method" ]; then
-        echo_date "Found method variable: $method" >> $LOG_FILE
-        OPERATION="$method"
-        PARAM_SOURCE="method_env"
-    fi
-    
-    # 方法2: 基于$2参数和配置字段推断操作类型
-    if [ -z "$OPERATION" ]; then
-        echo_date "Method 2: No operation found in env vars, inferring from params and config..." >> $LOG_FILE
-        echo_date "第二参数: $2" >> $LOG_FILE
-        echo_date "检查配置字段: easytier_autostart=$easytier_autostart, easytier_config_content=${#easytier_config_content}, easytier_config_content_encoded=${#easytier_config_content_encoded}" >> $LOG_FILE
-        
-        # 首先检查$2参数是否明确指示了操作类型
-        if [ "$2" = "status" ]; then
-            echo_date "第二参数明确为status，执行状态查询" >> $LOG_FILE
-            OPERATION="status"
-            PARAM_SOURCE="inferred_status_from_param2"
-        # 检查是否有easytier配置字段（表示这是配置相关请求）
-        elif [ -n "$easytier_autostart" ] || [ -n "$easytier_config_content" ] || [ -n "$easytier_config_content_encoded" ]; then
-            echo_date "检测到配置字段，判断为配置相关操作" >> $LOG_FILE
-            # 根据软件中心框架的常见模式，有配置字段通常表示服务操作
-            # 需要进一步判断是什么操作
-            if [ -n "$easytier_config_content" ] || [ -n "$easytier_config_content_encoded" ]; then
-                echo_date "配置文件内容存在，推断为启动服务操作" >> $LOG_FILE
-                OPERATION="start"
-                WEB_SUBMIT="web_submit"
-                PARAM_SOURCE="inferred_start_from_config"
-            else
-                echo_date "配置不完整，推断为保存配置操作" >> $LOG_FILE
-                OPERATION="save_config"
-                WEB_SUBMIT="web_submit"
-                PARAM_SOURCE="inferred_save_from_config"
-            fi
-        else
-            # 没有配置字段且$2不是status，默认为状态查询
-            echo_date "无配置字段且第二参数非status，默认为状态查询" >> $LOG_FILE
-            OPERATION="status"
-            PARAM_SOURCE="inferred_default_status"
-        fi
-    fi
-    
-    # 方法3: 调试模式 - 记录所有相关环境变量
-    echo_date "=== 环境变量调试信息 ===" >> $LOG_FILE
-    echo_date "All environment variables containing 'param', 'method', 'easy', or 'arg':" >> $LOG_FILE
-    env | grep -iE "(param|method|easy|arg|action|operation)" | head -30 >> $LOG_FILE
-    echo_date "All positional parameters:" >> $LOG_FILE
-    echo_date "All args: $*" >> $LOG_FILE
-    i=0
-    while [ $i -le 5 ]; do
-        eval "val=\$$i"
-        if [ -n "$val" ]; then
-            echo_date "  \$$i = $val" >> $LOG_FILE
-        fi
-        i=$((i + 1))
-    done
-    echo_date "Special variables check:" >> $LOG_FILE
-    echo_date "  method=$method" >> $LOG_FILE
-    echo_date "  action=$action" >> $LOG_FILE
-    echo_date "  operation=$operation" >> $LOG_FILE
-    echo_date "========================" >> $LOG_FILE
-    
-    # 方法4: 基于payload分析的直接映射
-    if [ -z "$OPERATION" ]; then
-        echo_date "Method 4: Direct payload mapping based on config presence..." >> $LOG_FILE
-        # 如果有完整的配置字段，且不是单纯的status查询，很可能是服务操作
-        if [ -n "$easytier_config_content" ] || [ -n "$easytier_config_content_encoded" ]; then
-            echo_date "Complete config detected, assuming service operation" >> $LOG_FILE
-            # 检查是否有明确的服务操作指示
-            if [ "$2" != "status" ]; then
-                OPERATION="start"
-                WEB_SUBMIT="web_submit"
-                PARAM_SOURCE="inferred_service_operation"
-                echo_date "Inferring start operation from complete config" >> $LOG_FILE
-            fi
-        fi
-    fi
-    
-else
-    # 标准命令行调用
-    OPERATION="$1"
-    WEB_SUBMIT="$2"
-    PARAM_SOURCE="cmdline"
-fi
-
-echo_date "最终确定 - Source: $PARAM_SOURCE, Op: $OPERATION, WebSubmit: $WEB_SUBMIT" >> $LOG_FILE
-
-# 处理Web提交请求
-if [ "$WEB_SUBMIT" = "web_submit" ] || ( [ "$IS_API_CALL" = "1" ] && ( [ -n "$easytier_config_content" ] || [ -n "$easytier_config_content_encoded" ] ) ); then
-    # 强制设置为web_submit模式，如果检测到完整配置
-    if [ "$WEB_SUBMIT" != "web_submit" ]; then
-        WEB_SUBMIT="web_submit"
-        echo_date "Forcing web_submit mode due to config presence" >> $LOG_FILE
-    fi
-    
+echo_date "=== Final Operation Handling ===" >> $LOG_FILE
+echo_date "Source: $PARAM_SOURCE, Op: $OPERATION, WebSubmit: $WEB_SUBMIT, args: $*" >> $LOG_FILE
+# 处理Web提交请求：仅当框架显式携带 web_submit 标记时进入；
+# status 轮询（无 $3）永远不进入此分支
+if [ "$WEB_SUBMIT" = "web_submit" ]; then
     set_lock
-    true > ${LOG_FILE} 2>/dev/null || true
-    check_status
-    
     echo_date "开始处理Web提交..." | tee -a ${LOG_FILE}
-    
+
+    # 统一的错误处理
     # 统一的错误处理
     handle_error()
     {
         echo_date "❌ 操作失败: $1" | tee -a ${LOG_FILE}
         echo "XU6J03M6" | tee -a ${LOG_FILE}
+        http_response "$1"
         unset_lock
         exit 1
     }
-    
+
+    # 运行命令，输出进日志，按命令真实退出码继续（tee 不影响判断）
+    run_logged()
+    {
+        local out
+        out=$("$@" 2>&1)
+        local rc=$?
+        [ -n "$out" ] && printf '%s\n' "$out" >> ${LOG_FILE}
+        return $rc
+    }
+
     if [ "$OPERATION" = "save_config" ]; then
         echo_date "执行保存配置操作..." | tee -a ${LOG_FILE}
-        if save_config 2>&1 | tee -a ${LOG_FILE}; then
+        if run_logged save_config; then
             echo_date "✅ 配置保存成功" | tee -a ${LOG_FILE}
         else
             handle_error "配置保存失败"
         fi
     elif [ "$OPERATION" = "save_autostart" ]; then
         echo_date "执行保存自启动配置操作..." | tee -a ${LOG_FILE}
-        if save_autostart_config 2>&1 | tee -a ${LOG_FILE}; then
+        if run_logged save_autostart_config; then
             echo_date "✅ 自启动配置保存成功" | tee -a ${LOG_FILE}
         else
             handle_error "自启动配置保存失败"
         fi
     elif [ "$OPERATION" = "start" ] || [ "$OPERATION" = "stop" ] || [ "$OPERATION" = "restart" ]; then
         echo_date "执行服务操作: $OPERATION" | tee -a ${LOG_FILE}
-        
+
         # 先保存配置
         if ! save_config >/dev/null 2>&1; then
             handle_error "配置保存失败，无法执行服务操作"
         fi
-        
+
         # 重新加载配置
         load_config_from_dbus
-        
+
         # 执行服务操作
         case "$OPERATION" in
             start)
                 echo_date "🚀 正在启动服务..." | tee -a ${LOG_FILE}
-                if start_easytier 2>&1 | tee -a ${LOG_FILE}; then
+                if run_logged start_easytier; then
                     echo_date "✅ 服务启动成功" | tee -a ${LOG_FILE}
                 else
                     handle_error "服务启动失败"
@@ -591,7 +487,7 @@ if [ "$WEB_SUBMIT" = "web_submit" ] || ( [ "$IS_API_CALL" = "1" ] && ( [ -n "$ea
                 ;;
             stop)
                 echo_date "⏹️ 正在停止服务..." | tee -a ${LOG_FILE}
-                if stop_easytier 2>&1 | tee -a ${LOG_FILE}; then
+                if run_logged stop_easytier; then
                     echo_date "✅ 服务停止成功" | tee -a ${LOG_FILE}
                 else
                     handle_error "服务停止失败"
@@ -600,8 +496,8 @@ if [ "$WEB_SUBMIT" = "web_submit" ] || ( [ "$IS_API_CALL" = "1" ] && ( [ -n "$ea
             restart)
                 echo_date "🔄 正在重启服务..." | tee -a ${LOG_FILE}
                 # 先停止，再启动，两个操作都要成功
-                if stop_easytier 2>&1 | tee -a ${LOG_FILE}; then
-                    if start_easytier 2>&1 | tee -a ${LOG_FILE}; then
+                if run_logged stop_easytier; then
+                    if run_logged start_easytier; then
                         echo_date "✅ 服务重启成功" | tee -a ${LOG_FILE}
                     else
                         handle_error "服务启动失败"
@@ -614,17 +510,17 @@ if [ "$WEB_SUBMIT" = "web_submit" ] || ( [ "$IS_API_CALL" = "1" ] && ( [ -n "$ea
     else
         handle_error "未知的操作: $OPERATION"
     fi
-    
+
     echo_date "✅ Web操作完成" | tee -a ${LOG_FILE}
     echo "XU6J03M6" | tee -a ${LOG_FILE}
+    # 框架机制：http_response 把响应 POST 给 httpdb(3030/_resp/$ID)，
+    # 浏览器的 ajax 才能立即收到返回；否则 httpd 挂起等到前端超时
+    http_response "success"
     unset_lock
     exit 0
 fi
 
 # 处理直接命令行调用和状态查询
-echo_date "=== Final Operation Handling ===" >> $LOG_FILE
-echo_date "OPERATION: $OPERATION, WEB_SUBMIT: $WEB_SUBMIT, PARAM_SOURCE: $PARAM_SOURCE" >> $LOG_FILE
-
 case $OPERATION in
     status)
         # 状态查询直接执行，不需要web_submit处理

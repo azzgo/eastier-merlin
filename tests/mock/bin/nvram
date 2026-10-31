@@ -1,0 +1,5 @@
+#!/bin/sh
+case "$1 $2" in
+    "get lan_ipaddr") echo "192.168.50.1" ;;
+    *) echo "" ;;
+esac

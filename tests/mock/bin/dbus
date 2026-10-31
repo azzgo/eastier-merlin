@@ -1,0 +1,26 @@
+#!/bin/sh
+FIXTURE_DIR="$(cd "$(dirname "$0")/../.." && pwd)/fixtures"
+
+case "$1" in
+    export)
+        . "$FIXTURE_DIR/dbus_export.sh"
+        ;;
+    get)
+        key="$2"
+        case "$key" in
+            easytier_autostart) echo "1" ;;
+            easytier_version) echo "1.2.0" ;;
+            *)
+                if [ -s "$FIXTURE_DIR/dbus_get_$key" ]; then
+                    cat "$FIXTURE_DIR/dbus_get_$key"
+                fi
+                ;;
+        esac
+        ;;
+    set|remove)
+        ;;
+    *)
+        echo "mock dbus: unknown cmd $*" >&2
+        exit 1
+        ;;
+esac
